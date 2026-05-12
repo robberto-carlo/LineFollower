@@ -51,7 +51,7 @@ This allows the system to adapt to different lighting conditions without modifyi
 
 ### Hardware
 
-- Raspberry Pi 4 (Embedded system)
+- Raspberry Pi 4
 - Camera module
 
 
@@ -63,6 +63,6 @@ This allows the system to adapt to different lighting conditions without modifyi
 
 ---
 
-## 🎯 Objective
+## Objective
 
 The main objective is to build a fully autonomous navigation system based purely on computer vision, capable of interpreting its environment and making real-time decisions in a reliable, stable, and adaptable way.
