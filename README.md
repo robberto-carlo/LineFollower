@@ -3,7 +3,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Device-Raspberry%20Pi%204-red?style=for-the-badge">
   <img src="https://img.shields.io/badge/Vision%20System-OpenCV-blue?style=for-the-badge">
-  <img src="https://img.shields.io/badge/Version-v1.0-green?style=for-the-badge">
+  <img src="https://img.shields.io/badge/Version-v1.1-green?style=for-the-badge">
   <img src="https://img.shields.io/badge/Language-Python-yellow?style=for-the-badge">
 </p>
 

@@ -3,10 +3,20 @@ import os
 import glob
 import numpy as np
 
+# ==========================================================
+# CONFIGURACIÓN
+# ==========================================================
 CARPETA = "Python/Tests/test_images"
-THRESHOLD_BLACK = 80 # Umbral para la línea negra
 
-TOP_RATIO = 0.80 # Parte inferior de la imagen
+THRESHOLD_BLACK = 80      # Umbral para detectar la línea negra
+TOP_RATIO = 0.80          # Parte inferior de la imagen
+
+# Rango HSV para detectar verde
+LOWER_GREEN = np.array([35, 60, 60])
+UPPER_GREEN = np.array([85, 255, 255])
+
+# Mínimo de píxeles verdes para considerar detección
+GREEN_THRESHOLD = 500
 
 # Cargar imágenes .png
 files = sorted(glob.glob(os.path.join(CARPETA, "*.png")))
@@ -17,18 +27,28 @@ if len(files) == 0:
 
 index = 0
 
+
 # ==========================================================
 # FUNCIÓN PRINCIPAL
 # ==========================================================
 def process_image(img):
-    # Convertir a blanco y negro
+    # ------------------------------------------------------
+    # Convertir a escala de grises y binarizar
+    # ------------------------------------------------------
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
     _, thresh = cv2.threshold(
         gray,
         THRESHOLD_BLACK,
         255,
         cv2.THRESH_BINARY_INV
     )
+
+    # ------------------------------------------------------
+    # Máscara para detectar color verde
+    # ------------------------------------------------------
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    green_mask = cv2.inRange(hsv, LOWER_GREEN, UPPER_GREEN)
 
     h, w = thresh.shape
     y_top = int(h * TOP_RATIO)
@@ -39,6 +59,10 @@ def process_image(img):
     curva_fuerte = False
     cuadro_naranja = False
 
+    # Valores de salida para detección verde
+    left_value = 0
+    right_value = 0
+
     # ------------------------------------------------------
     # Buscar contornos
     # ------------------------------------------------------
@@ -48,7 +72,6 @@ def process_image(img):
         cv2.CHAIN_APPROX_SIMPLE
     )
 
-    # Si no hay contornos
     if len(contours) == 0:
         fin_linea = True
 
@@ -56,52 +79,38 @@ def process_image(img):
         # Contorno más grande
         c = max(contours, key=cv2.contourArea)
 
-        # --------------------------------------------------
-        # Centro global del contorno
-        # --------------------------------------------------
+        # Centro del contorno
         M = cv2.moments(c)
 
         if M["m00"] != 0:
             cx = int(M["m10"] / M["m00"])
             cy = int(M["m01"] / M["m00"])
-
-            # Punto rojo
             cv2.circle(img, (cx, cy), 6, (0, 0, 255), -1)
 
-        # --------------------------------------------------
         # Dibujar contorno en máscara
-        # --------------------------------------------------
         contour_mask = np.zeros((h, w), dtype=np.uint8)
         cv2.drawContours(contour_mask, [c], -1, 255, 3)
 
         ys, xs = np.where(contour_mask > 0)
 
-        # Pintar contorno:
-        # Azul arriba
-        # Celeste abajo
+        # Pintar contorno
         for y, x in zip(ys, xs):
             if y < y_top:
                 img[y, x] = (222, 0, 0)
             else:
                 img[y, x] = (255, 255, 0)
 
-        # --------------------------------------------------
-        # Obtener la parte inferior de la línea
-        # --------------------------------------------------
+        # Parte inferior
         mask_bottom = ys >= y_top
         xs_bot = xs[mask_bottom]
         ys_bot = ys[mask_bottom]
 
-        # Si no hay suficientes puntos abajo
         if len(xs_bot) <= 5:
             fin_linea = True
 
         else:
             cuadro_naranja = True
 
-            # --------------------------------------------------
-            # Rectángulo naranja (parte inferior)
-            # --------------------------------------------------
             x_min = np.min(xs_bot)
             x_max = np.max(xs_bot)
             y_min = np.min(ys_bot)
@@ -114,27 +123,11 @@ def process_image(img):
             x2 = min(w - 1, x_max + expand)
             y2 = min(h - 1, y_max)
 
-            # --------------------------------------------------
-            #  Dibujar dos líneas verticales:
-            #  en x1 y otra en x2, de la linea segura(la inferior)
-            # --------------------------------------------------
-            cv2.line(
-                img,
-                (x1, 0),
-                (x1, h),
-                (0, 100, 255),
-                2
-            )
+            # Líneas verticales
+            cv2.line(img, (x1, 0), (x1, h), (0, 100, 255), 2)
+            cv2.line(img, (x2, 0), (x2, h), (0, 100, 255), 2)
 
-            cv2.line(
-                img,
-                (x2, 0),
-                (x2, h),
-                (0, 100, 255),
-                2
-            )
-
-            # Un rectángulo naranja alrededor de la parte inferior
+            # Rectángulo naranja
             cv2.rectangle(
                 img,
                 (x1, y1),
@@ -146,29 +139,14 @@ def process_image(img):
             # --------------------------------------------------
             # Detectar intersección
             # --------------------------------------------------
-            # Si hay muchos píxeles fuera del ancho
-            # de la línea inferior, es intersección.
             margen = 40
 
             izquierda = np.sum(xs < x1 - margen)
             derecha = np.sum(xs > x2 + margen)
 
-            cv2.putText(
-                img,
-                f"L:{izquierda} R:{derecha}",
-                (20, 115),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                (255, 0, 0),
-                2
-            )
-
             if izquierda > 300 and derecha > 300:
                 interseccion = True
 
-                # ==================================================
-                # CUADROS VERDES (SOLO SI HAY INTERSECCIÓN)
-                # ==================================================
                 puntos_laterales = (
                     (xs < x1 - margen) |
                     (xs > x2 + margen)
@@ -177,37 +155,36 @@ def process_image(img):
                 ys_laterales = ys[puntos_laterales]
 
                 if len(ys_laterales) > 0:
-
-                    # Parte más baja de la barra horizontal negra
                     y_barra = np.max(ys_laterales)
 
-                    # Tamaño de los cuadros verdes
                     box_width = 120
                     box_height = 120
 
-                    # Separación vertical (eje Y)
                     separacion_y = -1
-
-                    # Separación horizontal (eje X)
                     separacion_x = 50
 
-                    # Posición vertical de los cuadros
                     gy1 = min(h - 1, y_barra + separacion_y)
                     gy2 = min(h - 1, gy1 + box_height)
 
-                    # ==================================================
-                    # CUADRO IZQUIERDO
-                    # ==================================================
-                    # Se mueve más hacia la izquierda con separacion_x
-                    gx1_left = max(0, x1 - box_width // 2 - separacion_x)
-                    gx2_left = min(w - 1, x1 + box_width // 2 - separacion_x)
+                    # Cuadro izquierdo
+                    gx1_left = max(
+                        0,
+                        x1 - box_width // 2 - separacion_x
+                    )
+                    gx2_left = min(
+                        w - 1,
+                        x1 + box_width // 2 - separacion_x
+                    )
 
-                    # ==================================================
-                    # CUADRO DERECHO
-                    # ==================================================
-                    # Se mueve más hacia la derecha con separacion_x
-                    gx1_right = max(0, x2 - box_width // 2 + separacion_x)
-                    gx2_right = min(w - 1, x2 + box_width // 2 + separacion_x)
+                    # Cuadro derecho
+                    gx1_right = max(
+                        0,
+                        x2 - box_width // 2 + separacion_x
+                    )
+                    gx2_right = min(
+                        w - 1,
+                        x2 + box_width // 2 + separacion_x
+                    )
 
                     # Dibujar cuadros verdes
                     cv2.rectangle(
@@ -226,25 +203,44 @@ def process_image(img):
                         2
                     )
 
-                    # Contar píxeles negros
-                    roi_left = thresh[gy1:gy2, gx1_left:gx2_left]
-                    roi_right = thresh[gy1:gy2, gx1_right:gx2_right]
+                    # ==================================================
+                    # DETECTAR VERDE EN LOS CUADROS
+                    # ==================================================
+                    roi_green_left = green_mask[
+                        gy1:gy2,
+                        gx1_left:gx2_left
+                    ]
 
-                    pix_left = cv2.countNonZero(roi_left)
-                    pix_right = cv2.countNonZero(roi_right)
+                    roi_green_right = green_mask[
+                        gy1:gy2,
+                        gx1_right:gx2_right
+                    ]
 
-                    # Mostrar conteos
+                    green_left = cv2.countNonZero(roi_green_left)
+                    green_right = cv2.countNonZero(roi_green_right)
+
+                    # Convertir a 1 o 0
+                    left_value = (
+                        1 if green_left > GREEN_THRESHOLD else 0
+                    )
+
+                    right_value = (
+                        1 if green_right > GREEN_THRESHOLD else 0
+                    )
+
+                    # Mostrar 1 o 0 en pantalla
                     cv2.putText(
                         img,
-                        f"L:{pix_left} R:{pix_right}",
-                        (20, 145),
+                        f"L:{left_value} R:{right_value}",
+                        (20, 115),
                         cv2.FONT_HERSHEY_SIMPLEX,
                         0.7,
                         (0, 255, 0),
                         2
                     )
+
             # --------------------------------------------------
-            # Cuadro morado arriba (para detectar línea o todo blanco)
+            # Cuadro morado superior
             # --------------------------------------------------
             MARGEN = 60
 
@@ -262,9 +258,7 @@ def process_image(img):
                 2
             )
 
-            # --------------------------------------------------
-            # Revisar si hay línea en el cuadro morado o esta vacio(Blanco)
-            # --------------------------------------------------
+            # Revisar si hay línea en cuadro morado
             if top_morado > MARGEN:
                 region = thresh[
                     MARGEN:top_morado,
@@ -272,6 +266,7 @@ def process_image(img):
                 ]
 
                 pixeles_negros = cv2.countNonZero(region)
+
                 area = (
                     (top_morado - MARGEN)
                     * (w - 2 * MARGEN)
@@ -281,9 +276,7 @@ def process_image(img):
             else:
                 ratio = 0
 
-            # --------------------------------------------------
             # Fin de línea o curva fuerte
-            # --------------------------------------------------
             if ratio < 0.10:
                 cx_bottom = int(np.mean(xs_bot))
                 tercio = w // 3
@@ -298,20 +291,15 @@ def process_image(img):
     # ======================================================
     if not cuadro_naranja:
         texto = "TODO BLANCO"
-
     elif interseccion:
         texto = "INTERSECCION"
-
     elif fin_linea:
         texto = "FIN DE LINEA"
-
     elif curva_fuerte:
         texto = "CURVA FUERTE"
-
     else:
         texto = "LINEA NORMAL"
 
-    # Mostrar estado
     cv2.putText(
         img,
         texto,
@@ -322,7 +310,7 @@ def process_image(img):
         2
     )
 
-    return img, thresh
+    return img, thresh, green_mask
 
 
 # ==========================================================
@@ -335,9 +323,9 @@ while True:
         print("Error cargando:", files[index])
         break
 
-    processed, mask = process_image(img.copy())
+    processed, mask, green_mask = process_image(img.copy())
 
-    # Mostrar número de imagen
+    # Número de imagen
     cv2.putText(
         processed,
         f"IMG: {index + 1}/{len(files)}",
@@ -350,8 +338,8 @@ while True:
 
     cv2.imshow("Robot View", processed)
     cv2.imshow("Mask B/N", mask)
+    cv2.imshow("Green Mask", green_mask)
 
-    # Teclas:
     # 2 = siguiente
     # 1 = anterior
     # q = salir
