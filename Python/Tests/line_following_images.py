@@ -3,22 +3,18 @@ import os
 import glob
 import numpy as np
 
-# ==========================================================
-# CONFIGURACIÓN
-# ==========================================================
 CARPETA = "Python/Tests/test_images"
 
-THRESHOLD_BLACK = 80      # Umbral para detectar la línea negra
-TOP_RATIO = 0.80          # Parte inferior de la imagen
+showText = True;
+showCuadros = True;
 
-# Rango HSV para detectar verde
-LOWER_GREEN = np.array([35, 60, 60])
-UPPER_GREEN = np.array([85, 255, 255])
+THRESHOLD_BLACK = 80 #Umbral para detectar la línea negra
+LOWER_GREEN = np.array([35, 60, 60]) #HSV para detectar verde
+UPPER_GREEN = np.array([85, 255, 255]) 
 
-# Mínimo de píxeles verdes para considerar detección
-GREEN_THRESHOLD = 500
+TOP_RATIO = 0.80 #Parte inferior de la imagen
+GREEN_THRESHOLD = 500 # Mínimo de px verdes para considerar detección
 
-# Cargar imágenes .png
 files = sorted(glob.glob(os.path.join(CARPETA, "*.png")))
 
 if len(files) == 0:
@@ -27,14 +23,8 @@ if len(files) == 0:
 
 index = 0
 
-
-# ==========================================================
-# FUNCIÓN PRINCIPAL
-# ==========================================================
 def process_image(img):
-    # ------------------------------------------------------
     # Convertir a escala de grises y binarizar
-    # ------------------------------------------------------
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     _, thresh = cv2.threshold(
@@ -44,28 +34,22 @@ def process_image(img):
         cv2.THRESH_BINARY_INV
     )
 
-    # ------------------------------------------------------
-    # Máscara para detectar color verde
-    # ------------------------------------------------------
+    # Máscara para color verde
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     green_mask = cv2.inRange(hsv, LOWER_GREEN, UPPER_GREEN)
 
     h, w = thresh.shape
     y_top = int(h * TOP_RATIO)
 
-    # Estados
     interseccion = False
     fin_linea = False
     curva_fuerte = False
     cuadro_naranja = False
 
-    # Valores de salida para detección verde
     left_value = 0
     right_value = 0
 
-    # ------------------------------------------------------
     # Buscar contornos
-    # ------------------------------------------------------
     contours, _ = cv2.findContours(
         thresh,
         cv2.RETR_EXTERNAL,
@@ -123,22 +107,21 @@ def process_image(img):
             x2 = min(w - 1, x_max + expand)
             y2 = min(h - 1, y_max)
 
-            # Líneas verticales
-            cv2.line(img, (x1, 0), (x1, h), (0, 100, 255), 2)
-            cv2.line(img, (x2, 0), (x2, h), (0, 100, 255), 2)
+            if(showCuadros):
+                # Líneas verticales
+                cv2.line(img, (x1, 0), (x1, h), (0, 100, 255), 2)
+                cv2.line(img, (x2, 0), (x2, h), (0, 100, 255), 2)
 
-            # Rectángulo naranja
-            cv2.rectangle(
-                img,
-                (x1, y1),
-                (x2, y2),
-                (0, 185, 255),
-                2
-            )
+                # Rectángulo naranja
+                cv2.rectangle(
+                    img,
+                    (x1, y1),
+                    (x2, y2),
+                    (0, 185, 255),
+                    2
+                )
 
-            # --------------------------------------------------
             # Detectar intersección
-            # --------------------------------------------------
             margen = 40
 
             izquierda = np.sum(xs < x1 - margen)
@@ -186,26 +169,25 @@ def process_image(img):
                         x2 + box_width // 2 + separacion_x
                     )
 
-                    # Dibujar cuadros verdes
-                    cv2.rectangle(
-                        img,
-                        (gx1_left, gy1),
-                        (gx2_left, gy2),
-                        (0, 255, 0),
-                        2
-                    )
+                    if(showCuadros):
+                        # Dibujar cuadros verdes
+                        cv2.rectangle(
+                            img,
+                            (gx1_left, gy1),
+                            (gx2_left, gy2),
+                            (0, 255, 0),
+                            2
+                        )
 
-                    cv2.rectangle(
-                        img,
-                        (gx1_right, gy1),
-                        (gx2_right, gy2),
-                        (0, 255, 0),
-                        2
-                    )
+                        cv2.rectangle(
+                            img,
+                            (gx1_right, gy1),
+                            (gx2_right, gy2),
+                            (0, 255, 0),
+                            2
+                        )
 
-                    # ==================================================
-                    # DETECTAR VERDE EN LOS CUADROS
-                    # ==================================================
+                    # Detectar verde en los cuadros
                     roi_green_left = green_mask[
                         gy1:gy2,
                         gx1_left:gx2_left
@@ -219,7 +201,6 @@ def process_image(img):
                     green_left = cv2.countNonZero(roi_green_left)
                     green_right = cv2.countNonZero(roi_green_right)
 
-                    # Convertir a 1 o 0
                     left_value = (
                         1 if green_left > GREEN_THRESHOLD else 0
                     )
@@ -229,19 +210,18 @@ def process_image(img):
                     )
 
                     # Mostrar 1 o 0 en pantalla
-                    cv2.putText(
-                        img,
-                        f"L:{left_value} R:{right_value}",
-                        (20, 115),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.7,
-                        (0, 255, 0),
-                        2
-                    )
+                    if(showText):
+                        cv2.putText(
+                            img,
+                            f"L:{left_value} R:{right_value}",
+                            (20, 115),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.7,
+                            (0, 255, 0),
+                            2
+                        )
 
-            # --------------------------------------------------
-            # Cuadro morado superior
-            # --------------------------------------------------
+            # Cuadro morado superior(Para cuando es todo blanco)
             MARGEN = 60
 
             alto_box = y_max - y_min
@@ -250,13 +230,14 @@ def process_image(img):
                 y_min - int(alto_box * 0.15)
             )
 
-            cv2.rectangle(
-                img,
-                (MARGEN, MARGEN),
-                (w - MARGEN, top_morado),
-                (255, 0, 157),
-                2
-            )
+            if(showCuadros):
+                cv2.rectangle(
+                    img,
+                    (MARGEN, MARGEN),
+                    (w - MARGEN, top_morado),
+                    (255, 0, 157),
+                    2
+                )
 
             # Revisar si hay línea en cuadro morado
             if top_morado > MARGEN:
@@ -286,9 +267,7 @@ def process_image(img):
                 else:
                     curva_fuerte = True
 
-    # ======================================================
     # ESTADO FINAL
-    # ======================================================
     if not cuadro_naranja:
         texto = "TODO BLANCO"
     elif interseccion:
@@ -300,22 +279,20 @@ def process_image(img):
     else:
         texto = "LINEA NORMAL"
 
-    cv2.putText(
-        img,
-        texto,
-        (20, 80),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        1,
-        (0, 255, 0),
-        2
-    )
+    if(showText):
+        cv2.putText(
+            img,
+            texto,
+            (20, 80),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (0, 255, 0),
+            2
+        )
 
     return img, thresh, green_mask
 
 
-# ==========================================================
-# LOOP PRINCIPAL
-# ==========================================================
 while True:
     img = cv2.imread(files[index])
 
@@ -325,16 +302,16 @@ while True:
 
     processed, mask, green_mask = process_image(img.copy())
 
-    # Número de imagen
-    cv2.putText(
-        processed,
-        f"IMG: {index + 1}/{len(files)}",
-        (20, 40),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        1,
-        (33, 49, 231),
-        2
-    )
+    if(showText):
+        cv2.putText(
+            processed,
+            f"IMG: {index + 1}/{len(files)}",
+            (20, 40),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (33, 49, 231),
+            2
+        )
 
     cv2.imshow("Robot View", processed)
     cv2.imshow("Mask B/N", mask)
