@@ -214,7 +214,7 @@ def process_image(img):
                         cv2.putText(
                             img,
                             f"L:{left_value} R:{right_value}",
-                            (20, 115),
+                            (20, 113),
                             cv2.FONT_HERSHEY_SIMPLEX,
                             0.7,
                             (0, 255, 0),
